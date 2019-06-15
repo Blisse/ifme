@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # == Schema Information
 #
 # Table name: take_medication_reminders
@@ -9,10 +11,13 @@
 #  updated_at    :datetime
 #
 
-class TakeMedicationReminder < ActiveRecord::Base
+class TakeMedicationReminder < ApplicationRecord
   belongs_to :medication
-  validates_inclusion_of :active, in: [true, false]
+  validates :active, inclusion: { in: [true, false] }
   scope :active, -> { where(active: true) }
+  scope :for_day, lambda { |day = Time.current.wday|
+    joins(:medication).where('? = any(medications.weekly_dosage)', day)
+  }
 
   def name
     I18n.t('common.daily_reminder')

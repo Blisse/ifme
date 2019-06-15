@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 RSpec.describe PagesHelper, type: :helper do
   describe '#print_contributors' do
     it 'returns empty result for empty array' do
@@ -81,7 +83,6 @@ RSpec.describe PagesHelper, type: :helper do
             '<img alt="test1" src="/images/test1.png" />' \
           '</a>' \
         '</div>' \
-        '<div class="spacer"></div>' \
         '<div class="partner">' \
           '<a target="blank" href="http://if-me.org">' \
             '<img alt="test2" src="/images/test1.png" />' \

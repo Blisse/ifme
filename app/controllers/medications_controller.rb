@@ -1,29 +1,32 @@
-require "google/api_client"
+# frozen_string_literal: true
 
 class MedicationsController < ApplicationController
-  include CollectionPageSetup
+  include CollectionPageSetupConcern
   include ReminderHelper
-  helper_method :save_refill_to_google_calendar
-  before_action :set_medication, only: [:show, :edit, :update, :destroy]
+  include MedicationRefillHelper
+  include MedicationsHelper
+  include MedicationsFormHelper
+  before_action :set_medication, only: %i[show edit update destroy]
 
   # GET /medications
   # GET /medications.json
   def index
     page_collection('@medications', 'medication')
+    respond_to do |format|
+      format.json do
+        render json: {
+          data: medications_props(@medications),
+          lastPage: @medications.last_page?
+        }
+      end
+      format.html
+    end
   end
 
   # GET /medications/1
   # GET /medications/1.json
   def show
-    if @medication.userid == current_user.id
-      @page_edit = edit_medication_path(@medication)
-      @page_tooltip = t('medications.edit_medication')
-    else
-      respond_to do |format|
-        format.html { redirect_to medications_path }
-        format.json { head :no_content }
-      end
-    end
+    redirect_to_path(medications_path) if @medication.user_id != current_user.id
   end
 
   # GET /medications/new
@@ -37,42 +40,34 @@ class MedicationsController < ApplicationController
   def edit
     TakeMedicationReminder.find_or_initialize_by(medication_id: @medication.id)
     RefillReminder.find_or_initialize_by(medication_id: @medication.id)
-    if @medication.userid != current_user.id
-      respond_to do |format|
-        format.html { redirect_to medication_path(@medication) }
-        format.json { head :no_content }
-      end
-    end
+    return if @medication.user_id == current_user.id
+
+    redirect_to_medication(@medication)
   end
 
   # POST /medications
   # POST /medications.json
   def create
-    @medication = Medication.new(medication_params)
-    respond_to do |format|
-      if @medication.save
-        save_refill_to_google_calendar(@medication)
-        format.html { redirect_to medication_path(@medication) }
-        format.json { render :show, status: :created, location: @medication }
-      else
-        format.html { render :new }
-        format.json { render json: @medication.errors, status: :unprocessable_entity }
-      end
+    @medication =
+      Medication.new(medication_params.merge(user_id: current_user.id))
+    return unless save_refill_to_google_calendar(@medication)
+
+    if @medication.save
+      redirect_to_medication(@medication)
+    else
+      render_unprocessable_medication
     end
   end
 
   # PATCH/PUT /medications/1
   # PATCH/PUT /medications/1.json
   def update
-    respond_to do |format|
-      if @medication.update(medication_params)
-        save_refill_to_google_calendar(@medication)
-        format.html { redirect_to medication_path(@medication) }
-        format.json { render :show, status: :ok, location: @medication }
-      else
-        format.html { render :edit }
-        format.json { render json: @medication.errors, status: :unprocessable_entity }
-      end
+    return unless save_refill_to_google_calendar(@medication)
+
+    if @medication.update(medication_params)
+      redirect_to_medication(@medication)
+    else
+      render_unprocessable_medication
     end
   end
 
@@ -80,45 +75,46 @@ class MedicationsController < ApplicationController
   # DELETE /medications/1.json
   def destroy
     @medication.destroy
-    respond_to do |format|
-      format.html { redirect_to medications_path }
-      format.json { head :no_content }
-    end
+    redirect_to_path(medications_path)
   end
 
-  # Save refill date to Google calendar
-  def save_refill_to_google_calendar(medication)
-    if current_user.google_oauth2_enabled? && medication.add_to_google_cal
-      summary = "Refill for " + medication.name
-      date = medication.refill
-      CalendarUploader.new(summary: summary, date: date, access_token: current_user.token, email: current_user.email).upload_event
-    end
+  def redirect_to_medication(medication)
+    redirect_to_path(medication_path(medication))
+  end
+
+  def return_to_sign_in
+    sign_out current_user
+    redirect_to_path(new_user_session_path)
   end
 
   private
 
-  # Use callbacks to share common setup or constraints between actions.
-  def set_medication
-    begin
-      @medication = Medication.friendly.find(params[:id])
-    rescue
-      if @medication.blank?
-        respond_to do |format|
-          format.html { redirect_to medications_path }
-          format.json { head :no_content }
-        end
+  def render_unprocessable_medication
+    respond_to do |format|
+      format.html { render :new }
+      format.json do
+        render(json: @medication.errors,
+               status: :unprocessable_entity)
       end
     end
+  end
+
+  # Use callbacks to share common setup or constraints between actions.
+  def set_medication
+    @medication = Medication.friendly.find(params[:id])
+  rescue ActiveRecord::RecordNotFound
+    redirect_to_path(medications_path)
   end
 
   def medication_params
     params.require(:medication).permit(
       :name, :dosage, :refill,
-      :userid, :total, :strength,
+      :total, :strength,
       :dosage_unit, :total_unit, :strength_unit,
       :comments, :add_to_google_cal,
-      take_medication_reminder_attributes: [:active, :id],
-      refill_reminder_attributes: [:active, :id]
+      take_medication_reminder_attributes: %i[active id],
+      refill_reminder_attributes: %i[active id],
+      weekly_dosage: []
     )
   end
 end

@@ -1,16 +1,33 @@
+# frozen_string_literal: true
 describe CalendarUploader do
-  it "uploads an event to Google Calendar" do
-    uploader = CalendarUploader.new(summary: "an exciting event", date: "2015/02/14", access_token: "a token", email: "an email")
-    service = double
-    allow(service).to receive_message_chain(:events, :insert)
-    client = double
-    allow(uploader).to receive(:client) { client }
-    allow(client).to receive_message_chain(:authorization, :access_token=)
+  let(:service) { double }
+  let(:uploader) { CalendarUploader.new('a token') }
 
-    expect(client).to receive(:authorization)
-    expect(client).to receive(:discovered_api).with('calendar', 'v3') { service}
-    expect(client).to receive(:execute!)
+  describe 'upload event' do
+    context 'date is a string' do
+      it 'uploads an event to Google Calendar' do
+        uploader.calendar_service = service
+        expect(service).to receive(:insert_event)
+        uploader.upload_event('an exciting event', '2015/02/14')
+      end
+    end
 
-    uploader.upload_event
+    context 'date is a DateTime object' do
+      it 'uploads an event to Google Calendar' do
+        uploader.calendar_service = service
+        expect(service).to receive(:insert_event)
+        uploader.upload_event('an exciting event', DateTime.now.in_time_zone)
+      end
+    end
+  end
+
+  describe 'delete event' do
+    context 'calls google calendar service delete_event' do
+      it 'and removes event from google calendar' do
+        uploader.calendar_service = service
+        expect(service).to receive(:delete_event)
+        uploader.delete_event('event_id')
+      end
+    end
   end
 end

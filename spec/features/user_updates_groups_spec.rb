@@ -1,4 +1,6 @@
-RSpec.feature 'UserUpdatesGroups', type: :feature do
+# frozen_string_literal: true
+
+RSpec.feature 'UserUpdatesGroups', type: :feature, js: true do
   scenario 'leader removes another leader' do
     leader = create :user1
     login_as leader
@@ -9,7 +11,7 @@ RSpec.feature 'UserUpdatesGroups', type: :feature do
 
     visit edit_group_path(group)
     uncheck "group_leader_#{other_leader.id}"
-    click_button 'Update Group'
+    click_button 'Submit'
 
     expect(group.leaders).to eq [leader]
   end
@@ -24,7 +26,7 @@ RSpec.feature 'UserUpdatesGroups', type: :feature do
 
     visit edit_group_path(group)
     check "group_leader_#{other_user.id}"
-    click_button 'Update Group'
+    click_button 'Submit'
 
     expect(group.leaders).to include(other_user)
   end

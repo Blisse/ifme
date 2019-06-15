@@ -1,22 +1,20 @@
+# frozen_string_literal: true
 # == Schema Information
 #
 # Table name: moods
 #
-#  id          :integer          not null, primary key
+#  id          :bigint(8)        not null, primary key
 #  name        :string
 #  description :text
 #  created_at  :datetime
 #  updated_at  :datetime
-#  userid      :integer
+#  user_id     :integer
+#  slug        :string
 #
 
-class Mood < ActiveRecord::Base
+class Mood < ApplicationRecord
   extend FriendlyId
   friendly_id :name
-  validates_length_of :description, :maximum => 2000
-  validates_presence_of :userid, :name
-
-  def self.link
-    'moods'
-  end
+  validates :user_id, :name, presence: true
+  belongs_to :user
 end

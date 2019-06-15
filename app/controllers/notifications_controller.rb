@@ -1,60 +1,65 @@
+# frozen_string_literal: true
+
 class NotificationsController < ApplicationController
+  include NotificationsHelper
   before_action :set_notification, only: [:destroy]
 
   # DELETE /notifications/1
   # DELETE /notifications/1.json
   def destroy
-    notification = Notification.find_by(
-      id: params[:id],
-      userid: current_user.id
-    )
-
-    notification.destroy if notification.present?
+    @notification.destroy if @notification.present?
 
     respond_to do |format|
-      format.html { redirect_to :back }
+      format.html { redirect_back(fallback_location: notifications_path) }
       format.json { head :no_content }
     end
   end
 
   def clear
-    Notification.where(userid: current_user.id).destroy_all
-    render nothing: true
+    Notification.where(user_id: current_user.id).destroy_all
+    head :ok
   end
 
   def fetch_notifications
-    result = { fetch_notifications: Notification.where(userid: current_user.id).order("created_at ASC").all }
-    respond_to do |format|
-      format.html { render json: result }
-      format.json { render json: result }
-    end
+    result = Notification.where(user_id: current_user.id)
+                         .order(:created_at)
+    response = {
+      fetch_notifications: result.map { |item| render_notification(item) }
+    }
+    render json: response
   end
 
   def signed_in
-    result = { signed_in: current_user.id }
-    respond_to do |format|
-      format.html { render json: result }
-      format.json { render json: result }
-    end
+    render json: { signed_in: current_user.id }
   end
 
   private
 
-  # Use callbacks to share common setup or constraints between actions.
-  def set_notification
-    begin
-      @notification = Notification.find(params[:id])
-    rescue
-      if @notification.blank?
-        respond_to do |format|
-          format.html { redirect_to :back }
-          format.json { head :no_content }
-        end
-      end
+  def convert_to_hash(string_obj)
+    hash = {}
+    JSON.parse(string_obj).each do |item|
+      hash[item.first.to_sym] = item.second
+    end
+    hash
+  end
+
+  def render_notification(notification)
+    uniqueid = notification[:uniqueid]
+    data = convert_to_hash(notification[:data])
+    case data[:type]
+    when /comment/ then comment_link(uniqueid, data)
+    when /accepted_ally_request/ then accepted_ally_link(uniqueid, data)
+    when /new_ally_request/ then new_ally_request_link(uniqueid, data)
+    when /group/ then group_link(uniqueid, data)
+    when /meeting/ then meeting_link(uniqueid, data)
     end
   end
 
-  def notification_params
-    params.require(:notification).permit(:name, :description, :userid)
+  # Use callbacks to share common setup or constraints between actions.
+  def set_notification
+    @notification = Notification.find_by(
+      id: params[:id],
+      user_id: current_user.id
+    )
   end
 end

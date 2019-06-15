@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 # == Schema Information
 #
 # Table name: refill_reminders
@@ -9,9 +11,9 @@
 #  updated_at    :datetime
 #
 
-class RefillReminder < ActiveRecord::Base
+class RefillReminder < ApplicationRecord
   belongs_to :medication
-  validates_inclusion_of :active, in: [true, false]
+  validates :active, inclusion: { in: [true, false] }
   scope :active, -> { where(active: true) }
 
   def name

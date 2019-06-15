@@ -1,24 +1,30 @@
+# frozen_string_literal: true
+
 class SearchController < ApplicationController
   def index
-    mail = params[:search][:email]
+    permitted = params.require(:search).permit(:email)
+    raise ActionController::ParameterMissing if permitted.blank?
 
-    @matching_users = User.where.not(id: current_user.id).all
-    @matching_users = @matching_users.where(email: mail.strip) if mail.present?
+    @matching_users = search_by_email(permitted[:email].strip)
+    @email_query = permitted[:email]
+  rescue ActionController::ParameterMissing
+    redirect_to_path(allies_path)
   end
 
   def posts
     data_type = params[:search][:data_type]
     term = params[:search][:name]
 
-    if %w(moment category mood strategy medication).include? data_type
-      respond_to do |format|
-        format.html { redirect_to make_path(term, data_type) }
-        format.json { head :no_content }
-      end
-    end
+    return unless data_type.in?(%w[moment category mood strategy medication])
+
+    redirect_to_path(make_path(term, data_type))
   end
 
   private
+
+  def search_by_email(email)
+    User.where(email: email).where.not(id: current_user.id, banned: true)
+  end
 
   def make_path(term, data_type)
     send("#{data_type.pluralize}_path", ({ search: term } if term.present?))
